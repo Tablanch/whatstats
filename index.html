@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WA Stats">
+<title>WhatsApp Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--green:#00a884;--green-light:#25d366;--green-dark:#075e54;--accent:#34b7f1;--bg:#111b21;--surface:#1f2c34;--surface2:#2a3942;--border:#2a3942;--text:#e9edef;--muted:#8696a0;--danger:#f15c5c;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);padding:24px 16px 60px;min-height:100vh;}
+.container{max-width:1100px;margin:auto;}
+.header{display:flex;flex-direction:column;align-items:center;gap:6px;padding:36px 24px 28px;background:var(--surface);border:1px solid var(--border);border-radius:20px;margin-bottom:28px;position:relative;overflow:hidden;}
+.header::before{content:'';position:absolute;top:-60px;left:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(0,168,132,.25),transparent 70%);pointer-events:none;}
+.header::after{content:'';position:absolute;bottom:-40px;right:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(52,183,241,.15),transparent 70%);pointer-events:none;}
+.header-title{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;letter-spacing:-.5px;color:var(--green-light);}
+.header-sub{font-size:.75rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+.dropzone{margin-top:18px;border:2px dashed var(--border);border-radius:14px;padding:22px 32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--bg);width:100%;max-width:480px;position:relative;z-index:1;}
+.dropzone:hover,.dropzone.drag{border-color:var(--green);background:rgba(0,168,132,.06);}
+.dropzone label{display:block;cursor:pointer;font-size:.85rem;color:var(--muted);}
+.dropzone label span{color:var(--green-light);font-weight:500;}
+.dropzone input{display:none;}
+#fileStatus{margin-top:10px;font-size:.78rem;color:var(--muted);min-height:16px;}
+#fileStatus.ok{color:var(--green-light);}
+#fileStatus.err{color:var(--danger);}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-top:20px;display:none;}
+.section.visible{display:block;}
+.section h2{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--green-light);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.section h2::before{content:'';display:inline-block;width:3px;height:16px;background:var(--green);border-radius:2px;flex-shrink:0;}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;}
+.stat{background:var(--surface2);border-radius:12px;padding:16px 12px;text-align:center;}
+.stat-val{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--green-light);word-break:break-all;}
+.stat-lbl{font-size:.68rem;color:var(--muted);margin-top:4px;letter-spacing:.5px;text-transform:uppercase;}
+.chart-wrap{position:relative;max-height:280px;}
+.chart-wrap-tall{position:relative;max-height:420px;}
+.heatmap-scroll{overflow-x:auto;}
+.heatmap{display:grid;grid-template-columns:52px repeat(24,1fr);gap:3px;min-width:600px;margin-top:8px;}
+.hm-cell{height:26px;font-size:.65rem;line-height:26px;text-align:center;border-radius:5px;color:var(--muted);}
+.hm-label{background:var(--surface2);font-weight:600;font-size:.68rem;}
+table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:.82rem;}
+th,td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:left;}
+th{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.5px;font-weight:500;}
+tr:last-child td{border-bottom:none;}
+td:not(:first-child){color:var(--green-light);font-weight:500;}
+.pie-wrap{max-width:280px;margin:20px auto 0;}
+.media-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;}
+.media-card{background:var(--surface2);border-radius:12px;padding:14px;}
+.media-card-title{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;}
+.media-row{display:flex;justify-content:space-between;font-size:.8rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+.media-row:last-child{border:none;}
+.media-row span{color:var(--green-light);font-weight:600;}
+.words-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.word-tag{background:var(--surface2);border-radius:20px;padding:5px 12px;font-size:.78rem;display:flex;gap:6px;align-items:center;}
+.word-tag span{color:var(--green-light);font-size:.7rem;font-weight:700;}
+#loading{display:none;text-align:center;padding:20px;color:var(--muted);font-size:.82rem;}
+#loading.visible{display:block;}
+#dayInfo{margin-top:12px;font-size:.8rem;color:var(--muted);padding:8px 12px;background:var(--surface2);border-radius:8px;display:none;}
+#dayInfo.visible{display:block;}
+.calendar{max-width:360px;}
+.cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.cal-header button{background:var(--surface2);border:none;color:var(--text);border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1.1rem;transition:background .15s;}
+.cal-header button:hover{background:var(--green-dark);}
+.cal-header b{font-family:'Syne',sans-serif;font-size:.9rem;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.day-name{font-size:.7rem;text-align:center;color:var(--muted);padding-bottom:4px;text-transform:uppercase;}
+.day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:.78rem;cursor:default;transition:background .15s;}
+.day.has-msg{background:rgba(0,168,132,.15);cursor:pointer;color:var(--green-light);font-weight:600;}
+.day.has-msg:hover{background:rgba(0,168,132,.3);}
+/* Behavior cards */
+.behavior-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+.bcard{background:var(--surface2);border-radius:12px;padding:16px;}
+.bcard-title{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;}
+.bcard-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.04);}
+.bcard-row:last-child{border:none;}
+.bcard-row span{color:var(--green-light);font-weight:600;}
+.bcard-row .rank{color:var(--muted);font-size:.75rem;margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-title">WhatsApp Dashboard</div>
+    <div class="header-sub">Analisi offline della tua chat</div>
+    <div class="dropzone" id="dropzone">
+      <label>
+        <input type="file" accept=".txt,.zip" id="fileInput">
+        Trascina il file <span>.zip</span> o <span>.txt</span> esportato da WhatsApp,<br>oppure <span>clicca per selezionare</span>
+      </label>
+      <div id="fileStatus"></div>
+    </div>
+  </div>
+  <div id="loading">Elaborazione in corso...</div>
+  <div class="section" id="summarySection"><h2>Riepilogo</h2><div class="stats" id="summary"></div></div>
+  <div class="section" id="trendSection"><h2>Trend mensile</h2><div class="chart-wrap-tall"><canvas id="trendChart"></canvas></div></div>
+  <div class="section" id="calendarSection">
+    <h2>Calendario messaggi</h2>
+    <div class="calendar">
+      <div class="cal-header"><button onclick="changeMonth(-1)">&#8249;</button><b id="monthLabel"></b><button onclick="changeMonth(1)">&#8250;</button></div>
+      <div class="cal-grid" id="calendarGrid"></div>
+    </div>
+    <div id="dayInfo"></div>
+  </div>
+  <div class="section" id="hourSection"><h2>Ore del giorno</h2><div class="chart-wrap"><canvas id="hourChart"></canvas></div></div>
+  <div class="section" id="weekdaySection"><h2>Giorni della settimana</h2><div class="chart-wrap"><canvas id="weekdayChart"></canvas></div></div>
+  <div class="section" id="hourDaySection"><h2>Heatmap ora x giorno</h2><div class="heatmap-scroll"><div id="hourDayHeatmap" class="heatmap"></div></div></div>
+  <div class="section" id="authorsSection"><h2>Partecipanti</h2><table id="authorsTable"></table><div class="pie-wrap"><canvas id="authorsPieChart"></canvas></div></div>
+  <div class="section" id="behaviorSection"><h2>Comportamenti</h2><div class="behavior-grid" id="behaviorGrid"></div></div>
+  <div class="section" id="mediaSection"><h2>Media leaderboard</h2><div class="media-grid" id="mediaGrid"></div></div>
+  <div class="section" id="emojiSection"><h2>Emoji piu usate</h2><div class="chart-wrap-tall"><canvas id="emojiChart"></canvas></div></div>
+  <div class="section" id="wordsSection"><h2>Parole piu frequenti</h2><div class="words-wrap" id="wordsWrap"></div></div>
+</div>
+<script>
+let messagesByDay={},messages=[],stats={},currentMonth=new Date();
+const chartInstances={};
+const STOP_WORDS=new Set(["il","lo","la","i","gli","le","un","uno","una","e","in","di","da","a","su","per","con","che","ma","non","si","ho","ha","hai","hanno","sono","sei","era","mi","ti","ci","vi","ne","se","come","dove","quando","anche","poi","qui","ora","no","ok","dai","ah","eh","beh","ciao","grazie","al","del","nel","sul","tra","fra","questo","questa","quello","quella","pero","ancora","sempre","mai","tutto","tutti","tutta","tutte","loro","lui","lei","noi","voi","me","te","io","tu","media","omessa","omesso","immagine","video","audio","sticker","file","messaggi","messaggio","chat","incluso","inclusa","eliminato","eliminata","piu","gia"]);
+const MEDIA_PATTERNS={immagini:/immagine\s+omessa|image\s+omitted/i,video:/video\s+omesso|video\s+omitted/i,audio:/audio\s+omesso|audio\s+omitted/i,sticker:/sticker\s+non\s+incluso|sticker\s+omitted/i,gif:/gif\s+omessa|gif\s+omitted/i,documenti:/documento\s+omesso|document\s+omitted/i};
+// Soglia di silenzio per considerare l'inizio di una nuova conversazione (1 ora)
+const CONVO_GAP_MS = 60 * 60 * 1000;
+
+const dropzone=document.getElementById('dropzone'),fileInput=document.getElementById('fileInput');
+fileInput.addEventListener('change',e=>handleFile(e.target.files[0]));
+dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('drag');handleFile(e.dataTransfer.files[0]);});
+
+function setStatus(msg,type=''){const el=document.getElementById('fileStatus');el.textContent=msg;el.className=type;}
+
+async function handleFile(file){
+  if(!file)return;
+  setStatus('Lettura file...');
+  document.getElementById('loading').classList.add('visible');
+  try{
+    let text;
+    if(file.name.endsWith('.zip'))text=await readZip(file);
+    else if(file.name.endsWith('.txt'))text=await file.text();
+    else{setStatus('Formato non supportato. Usa .zip o .txt','err');document.getElementById('loading').classList.remove('visible');return;}
+    setStatus('OK: '+file.name,'ok');
+    parseChat(text);
+  }catch(err){setStatus('Errore: '+err.message,'err');document.getElementById('loading').classList.remove('visible');}
+}
+
+async function readZip(file){
+  const zip=await JSZip.loadAsync(file);
+  const txtFile=Object.values(zip.files).find(f=>!f.dir&&f.name.endsWith('.txt')&&!f.name.includes('__MACOSX'));
+  if(!txtFile)throw new Error('Nessun file .txt trovato nello ZIP');
+  return await txtFile.async('string');
+}
+
+function parseChat(text){
+  messagesByDay={};messages=[];
+  stats={byHour:Array(24).fill(0),byWeekday:Array(7).fill(0),byAuthor:{},byAuthorChars:{},byAuthorMedia:{},byMonth:{},emojis:{},words:{}};
+  const lines=text.split('\n');
+  const regex=/^[\u200e\u200f\ufeff]*\[(\d{2})\/(\d{2})\/(\d{2,4}),\s(\d{2}):(\d{2})(?::\d{2})?\]/;
+  for(const line of lines){
+    const m=line.match(regex);if(!m)continue;
+    const year=m[3].length===2?'20'+m[3]:m[3];
+    const day=year+'-'+m[2]+'-'+m[1];
+    const hour=+m[4];
+    const monthKey=year+'-'+m[2];
+    // Timestamp in ms per analisi comportamentale
+    const ts=new Date(+year,+m[2]-1,+m[1],+m[4],+m[5]).getTime();
+    messagesByDay[day]=(messagesByDay[day]||0)+1;
+    stats.byHour[hour]++;
+    const weekday=new Date(day).getDay();
+    stats.byWeekday[weekday]++;
+    stats.byMonth[monthKey]=(stats.byMonth[monthKey]||0)+1;
+    let author='Sconosciuto',textMsg='';
+    const bracketEnd=line.indexOf('] ');
+    if(bracketEnd!==-1){
+      const rest=line.slice(bracketEnd+2).replace(/^[\u200e\u200f]+/,'');
+      const colon=rest.indexOf(':');
+      if(colon>0){author=rest.slice(0,colon).trim();textMsg=rest.slice(colon+1).trim();}
+      else textMsg=rest.trim();
+    }
+    messages.push({day,hour,weekday,author,text:textMsg,ts});
+    stats.byAuthor[author]=(stats.byAuthor[author]||0)+1;
+    stats.byAuthorChars[author]=(stats.byAuthorChars[author]||0)+textMsg.length;
+    if(!stats.byAuthorMedia[author])stats.byAuthorMedia[author]={immagini:0,video:0,audio:0,sticker:0,gif:0,documenti:0};
+    for(const[type,pat]of Object.entries(MEDIA_PATTERNS)){if(pat.test(textMsg))stats.byAuthorMedia[author][type]++;}
+
+    // Emoji: usa Array.from per gestire correttamente sequenze multi-codepoint
+    const emojiMatches=textMsg.match(/\p{Extended_Pictographic}(\u200d\p{Extended_Pictographic})*/gu);
+    if(emojiMatches){
+      emojiMatches.forEach(e=>{
+        // Normalizza: prendi solo la sequenza completa
+        const norm=e.replace(/\uFE0F/g,''); // rimuovi variation selector opzionale per deduplicare
+        stats.emojis[norm]=(stats.emojis[norm]||0)+1;
+      });
+    }
+
+    const isSystem=Object.values(MEDIA_PATTERNS).some(p=>p.test(textMsg));
+    if(!isSystem){
+      textMsg.toLowerCase().replace(/[^a-z\u00e0-\u00fc'\s]/g,' ').split(/\s+/)
+        .filter(w=>w.length>3&&!STOP_WORDS.has(w))
+        .forEach(w=>stats.words[w]=(stats.words[w]||0)+1);
+    }
+  }
+  document.getElementById('loading').classList.remove('visible');
+  document.querySelectorAll('.section').forEach(s=>s.classList.add('visible'));
+  renderAll();
+}
+
+function renderAll(){renderSummary();renderTrend();renderCalendar();renderHourChart();renderWeekdayChart();renderHourDayHeatmap();renderAuthors();renderBehavior();renderMediaLeaderboard();renderEmojiChart();renderWords();}
+
+function fmt(iso){return iso?iso.split('-').reverse().join('/'):'--';}
+
+function renderSummary(){
+  const days=Object.keys(messagesByDay),counts=Object.values(messagesByDay);
+  const avg=messages.length/days.length;
+  const sorted=[...days].sort();
+  let maxStreak=1,cur=1;
+  for(let i=1;i<sorted.length;i++){const diff=(new Date(sorted[i])-new Date(sorted[i-1]))/86400000;cur=diff===1?cur+1:1;maxStreak=Math.max(maxStreak,cur);}
+  const peakCount=Math.max(...counts);
+  const peakHour=stats.byHour.indexOf(Math.max(...stats.byHour));
+  const firstDay=sorted[0],lastDay=sorted[sorted.length-1];
+  const spanDays=Math.round((new Date(lastDay)-new Date(firstDay))/86400000)+1;
+  document.getElementById('summary').innerHTML=`
+    <div class="stat"><div class="stat-val">${messages.length.toLocaleString('it-IT')}</div><div class="stat-lbl">Messaggi totali</div></div>
+    <div class="stat"><div class="stat-val">${days.length}</div><div class="stat-lbl">Giorni attivi</div></div>
+    <div class="stat"><div class="stat-val">${spanDays}</div><div class="stat-lbl">Durata (gg)</div></div>
+    <div class="stat"><div class="stat-val">${avg.toFixed(1)}</div><div class="stat-lbl">Media/giorno</div></div>
+    <div class="stat"><div class="stat-val">${maxStreak}</div><div class="stat-lbl">Streak max (gg)</div></div>
+    <div class="stat"><div class="stat-val">${peakCount}</div><div class="stat-lbl">Record giornaliero</div></div>
+    <div class="stat"><div class="stat-val">${peakHour}:00</div><div class="stat-lbl">Ora piu attiva</div></div>
+    <div class="stat"><div class="stat-val">${fmt(firstDay)}</div><div class="stat-lbl">Primo messaggio</div></div>
+    <div class="stat"><div class="stat-val">${fmt(lastDay)}</div><div class="stat-lbl">Ultimo messaggio</div></div>`;
+}
+
+function renderTrend(){
+  const months=Object.keys(stats.byMonth).sort();
+  const values=months.map(m=>stats.byMonth[m]);
+  const labels=months.map(m=>{const[y,mo]=m.split('-');return new Date(+y,+mo-1).toLocaleDateString('it-IT',{month:'short',year:'2-digit'});});
+  makeChart('trendChart',{type:'line',data:{labels,datasets:[{data:values,borderColor:'#00a884',backgroundColor:'rgba(0,168,132,.12)',fill:true,tension:.4,pointBackgroundColor:'#25d366',pointRadius:months.length>30?2:4,borderWidth:2}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.raw+' messaggi'}}},scales:{x:{grid:{color:'#2a3942'},ticks:{maxTicksLimit:12}},y:{grid:{color:'#2a3942'}}},responsive:true,maintainAspectRatio:true}});
+}
+
+function renderCalendar(){
+  const grid=document.getElementById('calendarGrid');grid.innerHTML='';
+  document.getElementById('monthLabel').textContent=currentMonth.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
+  ['L','M','M','G','V','S','D'].forEach(d=>{const el=document.createElement('div');el.className='day-name';el.textContent=d;grid.appendChild(el);});
+  const first=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1);
+  const offset=(first.getDay()+6)%7;
+  const daysInMonth=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0).getDate();
+  for(let i=0;i<offset;i++)grid.appendChild(document.createElement('div'));
+  for(let d=1;d<=daysInMonth;d++){
+    const cell=document.createElement('div');cell.className='day';cell.textContent=d;
+    const iso=currentMonth.getFullYear()+'-'+String(currentMonth.getMonth()+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    if(messagesByDay[iso]){cell.classList.add('has-msg');cell.title=messagesByDay[iso]+' messaggi';cell.onclick=()=>{const info=document.getElementById('dayInfo');info.textContent=fmt(iso)+': '+messagesByDay[iso]+' messaggi';info.classList.add('visible');};}
+    grid.appendChild(cell);
+  }
+}
+function changeMonth(delta){currentMonth.setMonth(currentMonth.getMonth()+delta);renderCalendar();}
+
+Chart.defaults.color='#8696a0';
+Chart.defaults.font={family:"'DM Mono', monospace",size:11};
+function makeChart(id,config){if(chartInstances[id])chartInstances[id].destroy();chartInstances[id]=new Chart(document.getElementById(id),config);}
+
+function renderHourChart(){
+  const max=Math.max(...stats.byHour);
+  makeChart('hourChart',{type:'bar',data:{labels:[...Array(24).keys()].map(h=>h+'h'),datasets:[{data:stats.byHour,backgroundColor:stats.byHour.map(v=>v===max?'#25d366':'rgba(0,168,132,.35)'),borderRadius:5}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.raw+' msg'}}},scales:{x:{grid:{color:'#2a3942'}},y:{grid:{color:'#2a3942'}}},responsive:true,maintainAspectRatio:true}});
+}
+
+function renderWeekdayChart(){
+  const max=Math.max(...stats.byWeekday);
+  makeChart('weekdayChart',{type:'bar',data:{labels:['Dom','Lun','Mar','Mer','Gio','Ven','Sab'],datasets:[{data:stats.byWeekday,backgroundColor:stats.byWeekday.map(v=>v===max?'#25d366':'rgba(52,183,241,.4)'),borderRadius:5}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.raw+' msg'}}},scales:{x:{grid:{color:'#2a3942'}},y:{grid:{color:'#2a3942'}}},responsive:true,maintainAspectRatio:true}});
+}
+
+function renderHourDayHeatmap(){
+  const c=document.getElementById('hourDayHeatmap');c.innerHTML='';
+  const matrix=Array.from({length:7},()=>Array(24).fill(0));
+  messages.forEach(m=>matrix[m.weekday][m.hour]++);
+  const max=Math.max(...matrix.flat())||1;
+  const days=['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  c.appendChild(document.createElement('div'));
+  for(let h=0;h<24;h++){const d=document.createElement('div');d.className='hm-cell hm-label';d.textContent=h;c.appendChild(d);}
+  for(let d=0;d<7;d++){
+    const l=document.createElement('div');l.className='hm-cell hm-label';l.textContent=days[d];c.appendChild(l);
+    for(let h=0;h<24;h++){const cell=document.createElement('div');const v=matrix[d][h];cell.className='hm-cell';cell.style.background='rgba(0,168,132,'+(v?(0.1+(v/max)*0.9).toFixed(2):'0.03')+')';cell.title=days[d]+' '+h+':00 - '+v+' msg';c.appendChild(cell);}
+  }
+}
+
+function renderAuthors(){
+  const t=document.getElementById('authorsTable');
+  const authors=Object.entries(stats.byAuthor).sort((a,b)=>b[1]-a[1]);
+  const total=messages.length;
+  const medals=['🥇','🥈','🥉'];
+  t.innerHTML='<tr><th></th><th>Autore</th><th>Messaggi</th><th>%</th><th>Avg caratteri</th></tr>';
+  authors.forEach(([a,n],i)=>{
+    const pct=((n/total)*100).toFixed(1);
+    const avgChars=stats.byAuthorChars[a]?Math.round(stats.byAuthorChars[a]/n):0;
+    t.innerHTML+='<tr><td>'+(medals[i]||'')+'</td><td>'+a+'</td><td>'+n+'</td><td>'+pct+'%</td><td>'+avgChars+'</td></tr>';
+  });
+  const palette=authors.map((_,i)=>'hsl('+((i*137.5)%360)+',60%,55%)');
+  makeChart('authorsPieChart',{type:'doughnut',data:{labels:authors.map(a=>a[0]),datasets:[{data:authors.map(a=>a[1]),backgroundColor:palette,borderWidth:2,borderColor:'#1f2c34'}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:12,boxWidth:12}},tooltip:{callbacks:{label:ctx=>' '+ctx.label+': '+ctx.raw+' msg'}}}}});
+}
+
+// ── Analisi comportamentale ───────────────────────────────────────────────────
+function renderBehavior(){
+  const authors=Object.keys(stats.byAuthor).filter(a=>a!=='Sconosciuto');
+  if(authors.length<2){document.getElementById('behaviorSection').classList.remove('visible');return;}
+
+  // Chi inizia piu conversazioni: primo messaggio dopo gap >= CONVO_GAP_MS
+  const starters={};authors.forEach(a=>starters[a]=0);
+  for(let i=0;i<messages.length;i++){
+    const msg=messages[i];
+    if(!authors.includes(msg.author))continue;
+    if(i===0||(msg.ts-messages[i-1].ts)>=CONVO_GAP_MS){
+      starters[msg.author]=(starters[msg.author]||0)+1;
+    }
+  }
+
+  // Tempo medio di risposta per autore (solo messaggi dopo un messaggio di autore diverso)
+  const responseTimes={};const responseCounts={};
+  authors.forEach(a=>{responseTimes[a]=0;responseCounts[a]=0;});
+  for(let i=1;i<messages.length;i++){
+    const cur=messages[i],prev=messages[i-1];
+    if(!authors.includes(cur.author)||cur.author===prev.author)continue;
+    const gap=cur.ts-prev.ts;
+    // Ignora gap > 24h (non e' una risposta reale)
+    if(gap>0&&gap<86400000){
+      responseTimes[cur.author]=(responseTimes[cur.author]||0)+gap;
+      responseCounts[cur.author]=(responseCounts[cur.author]||0)+1;
+    }
+  }
+
+  const avgResponse={};
+  authors.forEach(a=>{
+    if(responseCounts[a]>0)avgResponse[a]=responseTimes[a]/responseCounts[a];
+  });
+
+  // Ghosting: quante volte un autore ha mandato 2+ messaggi consecutivi senza risposta
+  const ghosting={};authors.forEach(a=>ghosting[a]=0);
+  for(let i=1;i<messages.length;i++){
+    const cur=messages[i],prev=messages[i-1];
+    if(!authors.includes(prev.author)||prev.author===cur.author)continue;
+    // gap enorme dopo messaggio di prev = potenziale ghosting
+    if(cur.ts-prev.ts>4*3600000){
+      ghosting[prev.author]=(ghosting[prev.author]||0)+1;
+    }
+  }
+
+  const grid=document.getElementById('behaviorGrid');grid.innerHTML='';
+
+  // Card: chi inizia piu conversazioni
+  const starterRanked=Object.entries(starters).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  if(starterRanked.length){
+    const c=document.createElement('div');c.className='bcard';
+    c.innerHTML='<div class="bcard-title">Chi inizia piu conversazioni</div>'
+      +starterRanked.map(([a,n],i)=>'<div class="bcard-row"><span class="rank">'+(i+1)+'.</span>'+a+' <span>'+n+'x</span></div>').join('');
+    grid.appendChild(c);
+  }
+
+  // Card: tempo medio di risposta
+  const respRanked=Object.entries(avgResponse).filter(x=>x[1]>0).sort((a,b)=>a[1]-b[1]);
+  if(respRanked.length){
+    const c=document.createElement('div');c.className='bcard';
+    c.innerHTML='<div class="bcard-title">Risponde piu velocemente</div>'
+      +respRanked.map(([a,ms],i)=>'<div class="bcard-row"><span class="rank">'+(i+1)+'.</span>'+a+' <span>'+fmtDuration(ms)+'</span></div>').join('');
+    grid.appendChild(c);
+  }
+
+  // Card: ghosting
+  const ghostRanked=Object.entries(ghosting).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  if(ghostRanked.length){
+    const c=document.createElement('div');c.className='bcard';
+    c.innerHTML='<div class="bcard-title">Ghosting (lunghi silenzi dopo)</div>'
+      +ghostRanked.map(([a,n],i)=>'<div class="bcard-row"><span class="rank">'+(i+1)+'.</span>'+a+' <span>'+n+'x</span></div>').join('');
+    grid.appendChild(c);
+  }
+
+  if(!grid.children.length)document.getElementById('behaviorSection').classList.remove('visible');
+}
+
+function fmtDuration(ms){
+  const s=Math.round(ms/1000);
+  if(s<60)return s+'s';
+  const mi=Math.round(s/60);
+  if(mi<60)return mi+'min';
+  const h=Math.round(mi/60);
+  return h+'h';
+}
+
+function renderMediaLeaderboard(){
+  const grid=document.getElementById('mediaGrid');grid.innerHTML='';
+  const authors=Object.keys(stats.byAuthorMedia);
+  if(!authors.length){document.getElementById('mediaSection').classList.remove('visible');return;}
+  let hasAny=false;
+  Object.keys(MEDIA_PATTERNS).forEach(type=>{
+    const ranked=authors.map(a=>({a,n:stats.byAuthorMedia[a][type]})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n).slice(0,5);
+    if(!ranked.length)return;
+    hasAny=true;
+    const card=document.createElement('div');card.className='media-card';
+    card.innerHTML='<div class="media-card-title">'+type+'</div>'+ranked.map(r=>'<div class="media-row">'+r.a+' <span>'+r.n+'</span></div>').join('');
+    grid.appendChild(card);
+  });
+  if(!hasAny)document.getElementById('mediaSection').classList.remove('visible');
+}
+
+function renderEmojiChart(){
+  // Top 15, ordinate per frequenza; le emoji sono gia normalizzate nel parser
+  const top=Object.entries(stats.emojis).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  if(!top.length){document.getElementById('emojiSection').classList.remove('visible');return;}
+  makeChart('emojiChart',{
+    type:'bar',
+    data:{
+      labels:top.map(e=>e[0]),
+      datasets:[{data:top.map(e=>e[1]),backgroundColor:'rgba(52,183,241,.5)',borderRadius:5}]
+    },
+    options:{
+      indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.raw+' volte'}}},
+      scales:{
+        x:{grid:{color:'#2a3942'}},
+        y:{grid:{color:'#2a3942'},ticks:{font:{size:20},color:'#e9edef'}}
+      },
+      responsive:true,
+      maintainAspectRatio:false,
+    }
+  });
+  // Altezza dinamica proporzionale al numero di emoji
+  document.querySelector('.chart-wrap-tall canvas#emojiChart').parentElement.style.height=(top.length*38+40)+'px';
+}
+
+function renderWords(){
+  const top=Object.entries(stats.words).sort((a,b)=>b[1]-a[1]).slice(0,40);
+  const wrap=document.getElementById('wordsWrap');wrap.innerHTML='';
+  if(!top.length){document.getElementById('wordsSection').classList.remove('visible');return;}
+  top.forEach(([w,n])=>{const tag=document.createElement('div');tag.className='word-tag';tag.innerHTML=w+' <span>'+n+'</span>';wrap.appendChild(tag);});
+}
+</script>
+</body>
+</html>

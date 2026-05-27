@@ -386,7 +386,7 @@
   function parseChat(text){
     allMsg = [];
     let lines = text.replaceAll('\r','').split('\n');
-    let re = /^[\u200e\u200f\ufeff]*\[(\d{2})\/(\d{2})\/(\d{2,4}),\s(\d{2}):(\d{2})(?::\d{2})?\]/;
+    let re = /^[\u200e\u200f\ufeff]*\[(\d{2})\/(\d{2})\/(\d{2,4}),\s(\d{2}):(\d{2})(?::\d{2})?]/;
     let lastObj = null;
     for(const line of lines){
       let m = line.match(re);
@@ -488,8 +488,11 @@
         st.wByYr[yr][w]=(st.wByYr[yr][w]||0)+1;
       });
   }
+  const EMOJI_CAT='Extended'+'_Pictographic';
+  const EMOJI_RE=new RegExp('\\p{'+EMOJI_CAT+'}️?(‍\\p{'+EMOJI_CAT+'}️?)*','gu');
   function processEmojiStats(txt,a){
-    let em=txt.match(/\p{Extended_Pictographic}️?(‍\p{Extended_Pictographic}️?)*/gu);
+    EMOJI_RE.lastIndex=0;
+    let em=txt.match(EMOJI_RE);
     if(em) em.forEach(function(e){
       st.emojis[e]=(st.emojis[e]||0)+1;
       if(!st.emojisByA[e]) st.emojisByA[e]={};
@@ -712,7 +715,7 @@
     for(let i=0;i<offset;i++) grid.appendChild(document.createElement('div'));
     for(let dd=1;dd<=dim;dd++){
       let cell=document.createElement('div'); cell.className='day';
-      cell.textContent=dd;
+      cell.textContent=String(dd);
       let iso=calMonth.getFullYear()+'-'+String(calMonth.getMonth()+1).padStart(2,'0')+'-'+String(dd).padStart(2,'0');
       let av=annivs[iso]||[];
       let hasMsg=!!mByDay[iso];
@@ -766,7 +769,7 @@
     let mx=Math.max.apply(null,mat.reduce(function(a,r){return a.concat(r);},[])); if(!mx) mx=1;
     // header
     c.appendChild(document.createElement('div'));
-    for(let hh=0;hh<24;hh++){let d=document.createElement('div');d.className='hm-cell hm-lbl';d.textContent=hh;c.appendChild(d);}
+    for(let hh=0;hh<24;hh++){let d=document.createElement('div');d.className='hm-cell hm-lbl';d.textContent=String(hh);c.appendChild(d);}
     let hmOrder=[1,2,3,4,5,6,0];
     for(let di=0;di<7;di++){
       let dw=hmOrder[di];

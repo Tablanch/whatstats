@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WhatStats">
   <title>WhatStats</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="logo.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="logo.png">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -302,7 +304,19 @@
     {lbl:'21-50 p.',   max:50,      col:'rgba(255,120,60,.7)'},
     {lbl:'50+ parole', max:1e9,     col:'rgba(241,92,92,.7)'},
   ];
-  const STOP = new Set('il lo la i gli le un uno una e in di da a su per con che ma non si ho ha hai hanno sono sei era mi ti ci vi ne se come dove quando anche poi qui ora no ok dai ah eh beh ciao grazie al del nel sul tra fra questo questa quello quella pero però ancora sempre mai tutto tutti tutta tutte loro lui lei noi voi me te io tu media omessa omesso immagine video audio sticker file messaggi messaggio chat incluso inclusa eliminato eliminata piu più gia già essere avere fare dire vedere andare venire sapere potere volere dovere allora ecco bene altro altri altre molto tanto poco bello bella belli belle perché sì né'.split(' '));
+  const STOP = new Set((
+    'il lo la i gli le un uno una e in di da a su per con che ma non si ho ha hai hanno sono sei era ' +
+    'mi ti ci vi ne se come dove quando anche poi qui ora no ok dai ah eh beh ciao grazie al del nel sul ' +
+    'tra fra questo questa quello quella pero però ancora sempre mai tutto tutti tutta tutte loro lui lei ' +
+    'noi voi me te io tu media omessa omesso immagine video audio sticker file messaggi messaggio chat ' +
+    'incluso inclusa eliminato eliminata piu più gia già essere avere fare dire vedere andare venire ' +
+    'sapere potere volere dovere allora ecco bene altro altri altre molto tanto poco bello bella belli ' +
+    'belle perché sì né alla alle allo agli della delle dello degli nella nelle nello negli sulla sulle ' +
+    'sullo sugli dalla dalle dallo dagli col coi solo cosa cose così pure tipo cioè proprio invece quanto ' +
+    'prima dopo stato stata stati state fatto fatta fatti fatte detto detta detti dette visto vista visti ' +
+    'viste avuto avuta avevi avevo aveva avevamo vuoi vediamo devo deve dobbiamo faccio facciamo magari ' +
+    'oggi https modificato'
+  ).split(' '));
   const MEDIA_PAT = {immagini:/immagine\s+omessa|image\s+omitted/i,video:/video\s+omesso|video\s+omitted/i,audio:/audio\s+omesso|audio\s+omitted/i,sticker:/sticker\s+non\s+incluso|sticker\s+omitted/i,gif:/gif\s+omessa|gif\s+omitted/i,documenti:/documento\s+omesso|document\s+omitted/i};
   const DEL_PAT = /questo messaggio.*eliminato|this message was deleted/i;
 

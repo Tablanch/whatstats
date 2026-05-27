@@ -1,7 +1,7 @@
 # WhatStats
 
 <div style="text-align:left">
-  <img src="img.png" alt="WhatStats" width="512" height="512" style="width:100px;height:auto"/>
+  <img src="readmeLogo.png" alt="WhatStats" width="1024" height="1024" style="width:100px;height:auto"/>
 </div>
 
 **Analisi completa e offline delle tue chat WhatsApp — direttamente nel browser.**

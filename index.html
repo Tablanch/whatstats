@@ -70,6 +70,13 @@
     /* CHART */
     .ch{position:relative;height:260px;}
     .cht{position:relative;}
+    /* EMOJI DOM CHART */
+    .emoji-chart{width:100%;padding:4px 0;}
+    .emoji-row{display:flex;align-items:center;gap:10px;padding:5px 0;cursor:default;}
+    .emoji-lbl{font-size:1.5rem;width:2rem;text-align:center;flex-shrink:0;line-height:1;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;}
+    .emoji-bar-wrap{flex:1;background:var(--border);border-radius:4px;overflow:hidden;height:22px;}
+    .emoji-bar{height:22px;background:rgba(52,183,241,.5);border-radius:4px;}
+    .emoji-cnt{font-size:.75rem;color:var(--muted);width:3.5rem;text-align:right;flex-shrink:0;font-family:'DM Mono',monospace;}
     /* HEATMAP */
     .hm-scroll{overflow-x:auto;}
     .hm-grid{display:grid;grid-template-columns:52px repeat(24,1fr);gap:3px;min-width:600px;margin-top:8px;}
@@ -272,7 +279,7 @@
   <div class="section" id="sYr"><h2>Parole per anno</h2><div class="yr-grid" id="yrGrid"></div></div>
   <div class="section" id="sSp"><h2>Velocità di scrittura stimata</h2><div class="sp-grid" id="spGrid"></div><p class="note">Stimata su burst di messaggi dello stesso autore entro 3 minuti.</p></div>
   <div class="section" id="sMed"><h2>Media leaderboard <span class="gbadge" id="medBadge" style="display:none">GRUPPO</span></h2><div class="media-grid" id="medGrid"></div></div>
-  <div class="section" id="sEmoji"><h2>Emoji piu usate</h2><div class="cht" id="emojiWrap"><canvas id="emojiChart"></canvas></div></div>
+  <div class="section" id="sEmoji"><h2>Emoji piu usate</h2><div id="emojiWrap"></div></div>
   <div class="section" id="sWords"><h2>Parole più frequenti</h2><div class="word-wrap" id="wordWrap"></div></div>
   <div class="section" id="sUrl"><h2>Link condivisi</h2><div class="url-card"><div class="url-title">Domini piu condivisi</div><div id="urlList"></div></div></div>
   <div class="section" id="sLm"><h2>Messaggi più lunghi</h2><div class="lm-list" id="lmList"></div></div>
@@ -978,31 +985,43 @@
     if(!hasAny) document.getElementById('sMed').classList.remove('on');
   }
 
-  // EMOJI
+  // EMOJI — DOM-based chart (no canvas) so emoji render natively on all platforms
   function renderEmoji(){
     let top=Object.entries(st.emojis).sort(function(a,b){return b[1]-a[1];}).slice(0,15);
     if(!top.length){document.getElementById('sEmoji').classList.remove('on');return;}
-    let h=top.length*38+40; document.getElementById('emojiWrap').style.height=h+'px';
-    mkChart('emojiChart',{type:'bar',data:{labels:top.map(function(e){return e[0];}),datasets:[{data:top.map(function(e){return e[1];}),backgroundColor:'rgba(52,183,241,.5)',borderRadius:5}]},options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{enabled:false,external:function(context){
-      let el=document.getElementById('emojiTip');
-      let tip=context.tooltip;
-      if(!tip.dataPoints||!tip.dataPoints.length||tip.opacity===0){el.style.display='none';return;}
-      let emoji=tip.dataPoints[0].label;
-      let count=tip.dataPoints[0].raw;
-      let byA=st.emojisByA[emoji]||{};
-      let sorted=Object.entries(byA).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
-      let html='<div style="font-size:1.1rem;margin-bottom:6px">'+emoji+' <b style="color:var(--green-light)">'+count+'×</b></div>';
-      if(sorted.length){
-        html+='<div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border);padding-top:5px;margin-bottom:3px">Chi la usa</div>';
-        sorted.forEach(function(x){html+='<div style="display:flex;justify-content:space-between;gap:14px;padding:2px 0"><span style="color:var(--text)">'+x[0]+'</span><span style="color:var(--accent);font-weight:600">'+x[1]+'</span></div>';});
+    let wrap=document.getElementById('emojiWrap');
+    wrap.innerHTML='';
+    let max=top[0][1];
+    let chart=document.createElement('div');
+    chart.className='emoji-chart';
+    top.forEach(function(e){
+      let emoji=e[0], count=e[1];
+      let pct=(count/max*100).toFixed(1);
+      let row=document.createElement('div');
+      row.className='emoji-row';
+      row.innerHTML='<span class="emoji-lbl">'+emoji+'</span>'+
+        '<div class="emoji-bar-wrap"><div class="emoji-bar" style="width:'+pct+'%"></div></div>'+
+        '<span class="emoji-cnt">'+count+'</span>';
+      function buildTip(cx,cy){
+        let el=document.getElementById('emojiTip');
+        let byA=st.emojisByA[emoji]||{};
+        let sorted=Object.entries(byA).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+        let html='<div style="font-size:1.1rem;margin-bottom:6px">'+emoji+' <b style="color:var(--green-light)">'+count+'×</b></div>';
+        if(sorted.length){
+          html+='<div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border);padding-top:5px;margin-bottom:3px">Chi la usa</div>';
+          sorted.forEach(function(x){html+='<div style="display:flex;justify-content:space-between;gap:14px;padding:2px 0"><span style="color:var(--text)">'+x[0]+'</span><span style="color:var(--accent);font-weight:600">'+x[1]+'</span></div>';});
+        }
+        el.innerHTML=html;
+        let tx=cx+16, ty=cy-20;
+        if(tx+180>window.innerWidth) tx=cx-196;
+        el.style.left=tx+'px'; el.style.top=ty+'px'; el.style.display='block';
       }
-      el.innerHTML=html;
-      let rect=context.chart.canvas.getBoundingClientRect();
-      let tx=rect.left+tip.caretX+16, ty=rect.top+tip.caretY-20;
-      if(tx+180>window.innerWidth) tx=rect.left+tip.caretX-196;
-      el.style.left=tx+'px'; el.style.top=ty+'px'; el.style.display='block';
-    }}},scales:{x:{grid:{color:'#2a3942'}},y:{grid:{color:'#2a3942'},ticks:{font:{size:20},color:'#e9edef'}}},responsive:true,maintainAspectRatio:false}});
-    document.getElementById('emojiChart').addEventListener('mouseleave',function(){document.getElementById('emojiTip').style.display='none';});
+      row.addEventListener('mousemove',function(ev){buildTip(ev.clientX,ev.clientY);});
+      row.addEventListener('mouseleave',function(){document.getElementById('emojiTip').style.display='none';});
+      row.addEventListener('touchstart',function(ev){buildTip(ev.touches[0].clientX,ev.touches[0].clientY);},{passive:true});
+      chart.appendChild(row);
+    });
+    wrap.appendChild(chart);
   }
 
   // WORDS + URL

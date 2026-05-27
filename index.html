@@ -16,6 +16,7 @@
     :root{--green:#00a884;--green-light:#25d366;--green-dark:#075e54;--accent:#34b7f1;--bg:#111b21;--surface:#1f2c34;--surface2:#2a3942;--border:#2a3942;--text:#e9edef;--muted:#8696a0;--danger:#f15c5c;}
     .light-mode{--bg:#f0f2f5;--surface:#fff;--surface2:#f0f2f5;--border:#d1d7db;--text:#111b21;--muted:#54656f;--green-dark:#d0f0e8;}
     *{box-sizing:border-box;margin:0;padding:0;}
+    button,a,[onclick]{touch-action:manipulation;}
     body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);padding:24px 16px 60px;min-height:100vh;transition:background .3s,color .3s;}
     .container{max-width:1100px;margin:auto;}
     .header{display:flex;flex-direction:column;align-items:center;gap:8px;padding:36px 24px 28px;background:var(--surface);border:1px solid var(--border);border-radius:20px;margin-bottom:20px;position:relative;}

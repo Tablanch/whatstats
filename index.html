@@ -272,9 +272,9 @@
   <div class="section" id="sHour"><h2>Ore del giorno</h2><div class="ch"><canvas id="hourChart"></canvas></div></div>
   <div class="section" id="sWday"><h2>Giorni della settimana</h2><div class="ch"><canvas id="wdayChart"></canvas></div></div>
   <div class="section" id="sHmap"><h2>Heatmap ora x giorno</h2><p class="note" style="margin-bottom:8px;">Passa il mouse o tocca una cella per vedere il conteggio.</p><div class="hm-scroll"><div class="hm-grid" id="hmGrid"></div></div></div>
-  <div class="section" id="sAuth"><h2>Partecipanti</h2><table id="authTable"></table><div class="pie-wrap"><canvas id="pieChart"></canvas></div><div class="author-grid" id="authCards"></div></div>
+  <div class="section" id="sAuth"><h2>Partecipanti</h2><table id="authTable"><thead><tr><th></th><th>Autore</th><th>Messaggi</th><th>%</th><th>Avg car.</th></tr></thead><tbody></tbody></table><div class="pie-wrap"><canvas id="pieChart"></canvas></div><div class="author-grid" id="authCards"></div></div>
   <div class="section" id="sBeh"><h2>Comportamenti</h2><p class="note" style="margin-bottom:14px;">Clicca sul titolo di una card per la descrizione.</p><div class="bcard-grid" id="behGrid"></div><p class="note" id="behNote"></p></div>
-  <div class="section" id="sWho"><h2>Chi risponde a chi <span class="gbadge">GRUPPO</span></h2><p class="note" style="margin-bottom:10px;">Riga risponde a colonna (primo msg dopo cambio autore).</p><div class="matrix-scroll"><table class="rmatrix" id="rMatrix"></table></div></div>
+  <div class="section" id="sWho"><h2>Chi risponde a chi <span class="gbadge">GRUPPO</span></h2><p class="note" style="margin-bottom:10px;">Riga risponde a colonna (primo msg dopo cambio autore).</p><div class="matrix-scroll"><table class="rmatrix" id="rMatrix"><thead><tr><th scope="col">da ↓ / a →</th></tr></thead><tbody></tbody></table></div></div>
   <div class="section" id="sLen"><h2>Distribuzione lunghezza messaggi</h2><div class="len-grid" id="lenGrid"></div></div>
   <div class="section" id="sUq"><h2>Parole uniche per autore</h2><div class="uq-grid" id="uqGrid"></div></div>
   <div class="section" id="sYr"><h2>Parole per anno</h2><div class="yr-grid" id="yrGrid"></div></div>
@@ -290,7 +290,7 @@
 
 <div class="modal" id="lmModal">
   <div class="modal-box">
-    <h3 id="lmModalMeta"></h3>
+    <h3 id="lmModalMeta">Dettagli messaggio</h3>
     <div class="modal-body" id="lmModalBody"></div>
     <p id="lmModalWc" style="font-size:.72rem;color:var(--accent);margin-top:8px;"></p>
     <button class="modal-close" onclick="closeLmModal()">Chiudi</button>
@@ -454,81 +454,103 @@
     renderAll();
   }
 
+  // ── STATS HELPERS ─────────────────────────────────────────────────────────────
+  function initAuthorStats(a){
+    st.byA[a]=0;st.chars[a]=0;
+    st.media[a]={immagini:0,video:0,audio:0,sticker:0,gif:0,documenti:0};
+    st.morning[a]=0;st.night[a]=0;st.deleted[a]=0;
+    st.monologue[a]={max:0};st.questions[a]={q:0,tot:0};
+    st.lenB[a]=new Array(LEN_B.length).fill(0);
+    st.awords[a]={};st.burst[a]=[];st.replies[a]={};st.closers[a]=0;
+  }
+  function countMedia(a,txt){
+    for(let k in MEDIA_PAT) if(MEDIA_PAT[k].test(txt)) st.media[a][k]++;
+  }
+  function updateTimeOfDay(a,hr){
+    if(hr>=6&&hr<12) st.morning[a]++;
+    if(hr>=22||hr<NIGHT_E) st.night[a]++;
+  }
+  function isSysMsg(txt){
+    return Object.values(MEDIA_PAT).some(function(p){return p.test(txt);})||DEL_PAT.test(txt);
+  }
+  function processContent(txt,a,yr,day,hr){
+    let wc=txt.split(/\s+/).filter(function(w){return w.length>0;}).length;
+    let bk=LEN_B.length-1;
+    for(let b=0;b<LEN_B.length;b++){if(wc<=LEN_B[b].max){bk=b;break;}}
+    st.lenB[a][bk]++;
+    if(wc>50) st.longMsgs.push({a:a,day:day,hr:hr,txt:txt,wc:wc});
+    txt.toLowerCase().replaceAll(/https?:\/\/\S+/g,' ').replaceAll(/[^a-zà-ü'\s]/g,' ').split(/\s+/)
+      .filter(function(w){return w.length>3&&!STOP.has(w);})
+      .forEach(function(w){
+        st.words[w]=(st.words[w]||0)+1;
+        st.awords[a][w]=(st.awords[a][w]||0)+1;
+        if(!st.wByYr[yr]) st.wByYr[yr]={};
+        st.wByYr[yr][w]=(st.wByYr[yr][w]||0)+1;
+      });
+  }
+  function processEmojiStats(txt,a){
+    let em=txt.match(/\p{Extended_Pictographic}️?(‍\p{Extended_Pictographic}️?)*/gu);
+    if(em) em.forEach(function(e){
+      st.emojis[e]=(st.emojis[e]||0)+1;
+      if(!st.emojisByA[e]) st.emojisByA[e]={};
+      st.emojisByA[e][a]=(st.emojisByA[e][a]||0)+1;
+    });
+  }
+  function processUrlStats(txt){
+    let ur=/https?:\/\/([^\s/]+)/gi,um;
+    while((um=ur.exec(txt))!==null){let dom=um[1].replace(/^www\./,'');st.urls[dom]=(st.urls[dom]||0)+1;}
+  }
+  function updateMsgSequence(m,i,seq){
+    let a=m.author,ts=m.ts,txt=m.text,gap=ts-seq.prevTs;
+    if(a===seq.prevA){
+      seq.consec++;
+      if(gap<=SPEED_WIN&&txt.length>0) st.burst[a].push({ch:txt.length,ms:gap});
+      seq.prevTs=ts;
+      return;
+    }
+    if(seq.prevA&&gap>=CONVO_GAP) st.closers[seq.prevA]++;
+    if(seq.prevA&&seq.consec>1) st.monologue[seq.prevA].max=Math.max(st.monologue[seq.prevA].max,seq.consec);
+    seq.consec=1;
+    if(seq.prevA){
+      if(!st.replies[a]) st.replies[a]={};
+      st.replies[a][seq.prevA]=(st.replies[a][seq.prevA]||0)+1;
+    }
+    seq.prevA=a;
+    seq.prevTs=ts;
+  }
+
   // ── STATS ─────────────────────────────────────────────────────────────────────
   function computeStats(){
-    mByDay = {};
-    st = {
-      hr:new Array(24).fill(0), wd:new Array(7).fill(0),
-      byA:{}, chars:{}, media:{}, morning:{}, night:{}, deleted:{}, monologue:{},
-      questions:{}, lenB:{}, awords:{}, burst:{}, replies:{}, closers:{},
-      month:{}, dayC:{}, year:{}, emojis:{}, emojisByA:{}, words:{}, wByYr:{}, urls:{}, delTotal:0, longMsgs:[]
+    mByDay={};
+    st={
+      hr:new Array(24).fill(0),wd:new Array(7).fill(0),
+      byA:{},chars:{},media:{},morning:{},night:{},deleted:{},monologue:{},
+      questions:{},lenB:{},awords:{},burst:{},replies:{},closers:{},
+      month:{},dayC:{},year:{},emojis:{},emojisByA:{},words:{},wByYr:{},urls:{},delTotal:0,longMsgs:[]
     };
-    let prevA=null, consec=0, prevTs=0;
-    for(let i=0; i<msgs.length; i++){
-      let m=msgs[i], day=m.day, hr=m.hr, a=m.author, txt=m.text, ts=m.ts, wd=m.wd;
-      let yr=day.slice(0,4), mo=day.slice(0,7);
-    mByDay[day]=(mByDay[day]||0)+1;
-      st.hr[hr]++; st.wd[wd]++;
+    let seq={prevA:null,consec:0,prevTs:0};
+    for(let i=0;i<msgs.length;i++){
+      let m=msgs[i],day=m.day,hr=m.hr,a=m.author,txt=m.text,wd=m.wd;
+      let yr=day.slice(0,4),mo=day.slice(0,7);
+      mByDay[day]=(mByDay[day]||0)+1;
+      st.hr[hr]++;st.wd[wd]++;
       st.month[mo]=(st.month[mo]||0)+1;
       st.dayC[day]=(st.dayC[day]||0)+1;
       st.year[yr]=(st.year[yr]||0)+1;
-      if(!st.byA[a]){
-        st.byA[a]=0; st.chars[a]=0;
-        st.media[a]={immagini:0,video:0,audio:0,sticker:0,gif:0,documenti:0};
-        st.morning[a]=0; st.night[a]=0; st.deleted[a]=0;
-        st.monologue[a]={max:0}; st.questions[a]={q:0,tot:0};
-        st.lenB[a]=new Array(LEN_B.length).fill(0);
-        st.awords[a]={}; st.burst[a]=[]; st.replies[a]={}; st.closers[a]=0;
-      }
-      st.byA[a]++; st.chars[a]+=txt.length;
-      for(let k in MEDIA_PAT) if(MEDIA_PAT[k].test(txt)) st.media[a][k]++;
-      if(hr>=6&&hr<12) st.morning[a]++;
-      if(hr>=22||hr<NIGHT_E) st.night[a]++;
-      if(DEL_PAT.test(txt)){ st.delTotal++; st.deleted[a]++; }
-      // monologo + closers + burst + replies
-      if(a===prevA){
-        consec++;
-        if(ts-prevTs<=SPEED_WIN && txt.length>0) st.burst[a].push({ch:txt.length, ms:ts-prevTs});
-      } else {
-        if(prevA && i>0 && ts-prevTs>=CONVO_GAP) st.closers[prevA]++;
-        if(prevA && consec>1) st.monologue[prevA].max = Math.max(st.monologue[prevA].max, consec);
-        consec=1;
-        if(prevA && a!==prevA){ if(!st.replies[a]){ st.replies[a]={}; } st.replies[a][prevA]=(st.replies[a][prevA]||0)+1; }
-        prevA=a;
-      }
-      prevTs=ts;
+      if(!st.byA[a]) initAuthorStats(a);
+      st.byA[a]++;st.chars[a]+=txt.length;
+      countMedia(a,txt);
+      updateTimeOfDay(a,hr);
+      if(DEL_PAT.test(txt)){st.delTotal++;st.deleted[a]++;}
+      updateMsgSequence(m,i,seq);
       st.questions[a].tot++;
       if(txt.trim().endsWith('?')) st.questions[a].q++;
-      let isSys = Object.values(MEDIA_PAT).some(function(p){ return p.test(txt); }) || DEL_PAT.test(txt);
-      if(!isSys){
-        let wc = txt.split(/\s+/).filter(function(w){ return w.length>0; }).length;
-        let bk = LEN_B.length-1;
-        for(let b=0; b<LEN_B.length; b++){ if(wc<=LEN_B[b].max){bk=b;break;} }
-        st.lenB[a][bk]++;
-        if(wc>50) st.longMsgs.push({a:a,day:day,hr:hr,txt:txt,wc:wc});
-        txt.toLowerCase().replace(/https?:\/\/\S+/g,' ').replaceAll(/[^a-z\u00e0-\u00fc'\s]/g,' ').split(/\s+/)
-                .filter(function(w){ return w.length>3 && !STOP.has(w); })
-                .forEach(function(w){
-                  st.words[w]=(st.words[w]||0)+1;
-                  st.awords[a][w]=(st.awords[a][w]||0)+1;
-                  if(!st.wByYr[yr]) st.wByYr[yr]={};
-                  st.wByYr[yr][w]=(st.wByYr[yr][w]||0)+1;
-                });
-      }
-
-      let em = txt.match(/\p{Extended_Pictographic}️?(‍\p{Extended_Pictographic}️?)*/gu);
-      if(em) em.forEach(function(e){
-        st.emojis[e]=(st.emojis[e]||0)+1;
-        if(!st.emojisByA[e]) st.emojisByA[e]={};
-        st.emojisByA[e][a]=(st.emojisByA[e][a]||0)+1;
-      });
-      // urls
-      let ur=/https?:\/\/([^\s/]+)/gi, um;
-      while((um=ur.exec(txt))!==null){ let dom=um[1].replace(/^www\./,''); st.urls[dom]=(st.urls[dom]||0)+1; }
+      if(!isSysMsg(txt)) processContent(txt,a,yr,day,hr);
+      processEmojiStats(txt,a);
+      processUrlStats(txt);
     }
-    if(prevA) st.closers[prevA]++;
-    if(prevA && consec>1) st.monologue[prevA].max = Math.max(st.monologue[prevA].max, consec);
-    st.longMsgs.sort(function(a,b){ return b.wc-a.wc; });
+    if(seq.prevA){st.closers[seq.prevA]++;if(seq.consec>1) st.monologue[seq.prevA].max=Math.max(st.monologue[seq.prevA].max,seq.consec);}
+    st.longMsgs.sort(function(a,b){return b.wc-a.wc;});
   }
 
   // ── ANNIVERSARIES ─────────────────────────────────────────────────────────────
@@ -773,10 +795,11 @@
     let authors=Object.entries(st.byA).sort(function(a,b){return b[1]-a[1];});
     let tot=msgs.length, medals=['🥇','🥈','🥉'];
     let t=document.getElementById('authTable');
-    t.innerHTML='<tr><th></th><th>Autore</th><th>Messaggi</th><th>%</th><th>Avg car.</th></tr>';
+    let tbody=t.querySelector('tbody');
+    tbody.innerHTML='';
     authors.forEach(function(x,i){
       let a=x[0],n=x[1];
-      t.innerHTML+='<tr><td>'+(medals[i]||'')+'</td><td>'+a+'</td><td>'+n+'</td><td>'+(n/tot*100).toFixed(1)+'%</td><td>'+Math.round((st.chars[a]||0)/n)+'</td></tr>';
+      tbody.innerHTML+='<tr><td>'+(medals[i]||'')+'</td><td>'+a+'</td><td>'+n+'</td><td>'+(n/tot*100).toFixed(1)+'%</td><td>'+Math.round((st.chars[a]||0)/n)+'</td></tr>';
     });
     let pal=authors.map(function(_,i){return 'hsl('+((i*137.5)%360)+',60%,55%)';});
     mkChart('pieChart',{type:'doughnut',data:{labels:authors.map(function(x){return x[0];}),datasets:[{data:authors.map(function(x){return x[1];}),backgroundColor:pal,borderWidth:2,borderColor:'#1f2c34'}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{padding:12,boxWidth:12}},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' msg';}}}}}});
@@ -802,6 +825,43 @@
     });
   }
 
+
+  // BEHAVIOR HELPERS
+  function computeStarters(authors){
+    let starters={};
+    authors.forEach(function(a){starters[a]=0;});
+    for(let i=0;i<msgs.length;i++){
+      let m=msgs[i];
+      if(!authors.includes(m.author)) continue;
+      if(i===0||m.ts-msgs[i-1].ts>=CONVO_GAP) starters[m.author]++;
+    }
+    return starters;
+  }
+  function computeResponseTime(authors){
+    let rt={},rc={};
+    authors.forEach(function(a){rt[a]=0;rc[a]=0;});
+    for(let i=1;i<msgs.length;i++){
+      let cur=msgs[i],prev=msgs[i-1];
+      if(!authors.includes(cur.author)||cur.author===prev.author) continue;
+      let gap=cur.ts-prev.ts,ph=new Date(prev.ts).getHours();
+      if(gap>0&&gap<=21600000&&!(ph>=NIGHT_S&&ph<NIGHT_E)){rt[cur.author]+=gap;rc[cur.author]++;}
+    }
+    let ar={};
+    authors.forEach(function(a){if(rc[a]>2) ar[a]=rt[a]/rc[a];});
+    return ar;
+  }
+  function computeGhosting(authors){
+    let ghost={};
+    authors.forEach(function(a){ghost[a]=0;});
+    for(let i=1;i<msgs.length;i++){
+      let cur=msgs[i],prev=msgs[i-1];
+      if(!authors.includes(prev.author)) continue;
+      let gap=cur.ts-prev.ts,ph=new Date(prev.ts).getHours();
+      if(gap>=GHOST_GAP&&!(ph>=NIGHT_S&&ph<NIGHT_E)&&cur.author!==prev.author) ghost[prev.author]++;
+    }
+    return ghost;
+  }
+
   // BEHAVIOR
   const BEH_DEFS = [
     {t:'Chi inizia piu conversazioni', d:'Chi manda il primo messaggio dopo almeno 1 ora di silenzio.'},
@@ -815,29 +875,9 @@
   ];
   function renderBehavior(){
     let authors=Object.keys(st.byA).filter(function(a){return a!=='Sconosciuto';});
-    // compute starters
-    let starters={};authors.forEach(function(a){starters[a]=0;});
-    for(let i=0;i<msgs.length;i++){
-      let m=msgs[i]; if(!authors.includes(m.author)) continue;
-      if(i===0||(m.ts-msgs[i-1].ts)>=CONVO_GAP) starters[m.author]++;
-    }
-    // response time
-    let rt={},rc={};authors.forEach(function(a){rt[a]=0;rc[a]=0;});
-    for(let i=1;i<msgs.length;i++){
-      let cur=msgs[i],prev=msgs[i-1];
-      if(!authors.includes(cur.author)||cur.author===prev.author) continue;
-      let gap=cur.ts-prev.ts, ph=new Date(prev.ts).getHours();
-      if(gap>0&&gap<=21600000&&!(ph>=NIGHT_S&&ph<NIGHT_E)){rt[cur.author]+=gap;rc[cur.author]++;}
-    }
-    let ar={};authors.forEach(function(a){if(rc[a]>2)ar[a]=rt[a]/rc[a];});
-    // ghosting
-    let ghost={};authors.forEach(function(a){ghost[a]=0;});
-    for(let i=1;i<msgs.length;i++){
-      let cur=msgs[i],prev=msgs[i-1];
-      if(!authors.includes(prev.author)) continue;
-      let gap=cur.ts-prev.ts, ph=new Date(prev.ts).getHours();
-      if(gap>=GHOST_GAP&&!(ph>=NIGHT_S&&ph<NIGHT_E)&&cur.author!==prev.author) ghost[prev.author]++;
-    }
+    let starters=computeStarters(authors);
+    let ar=computeResponseTime(authors);
+    let ghost=computeGhosting(authors);
     let rowSets=[
       Object.entries(starters).filter(function(x){return x[1]>0;}).sort(function(a,b){return b[1]-a[1];}).map(function(x){return {l:x[0],v:x[1]+'x'};}),
       Object.entries(ar).sort(function(a,b){return a[1]-b[1];}).map(function(x){return {l:x[0],v:fmtMs(x[1])};}),
@@ -848,14 +888,14 @@
       Object.entries(st.morning).sort(function(a,b){return b[1]-a[1];}).map(function(x){return {l:x[0],v:x[1]};}),
       Object.entries(st.night).sort(function(a,b){return b[1]-a[1];}).map(function(x){return {l:x[0],v:x[1]};})
     ];
-    let grid=document.getElementById('behGrid'); grid.innerHTML='';
+    let grid=document.getElementById('behGrid');grid.innerHTML='';
     BEH_DEFS.forEach(function(def,idx){
-      let rows=rowSets[idx]; if(!rows||!rows.length) return;
-      let card=document.createElement('div'); card.className='bcard';
+      let rows=rowSets[idx];if(!rows||!rows.length) return;
+      let card=document.createElement('div');card.className='bcard';
       let descId='bd'+idx;
       card.innerHTML='<div class="bcard-title" onclick="toggleBDesc(\''+descId+'\')">'+def.t+'</div>'
-              +'<div class="bcard-desc" id="'+descId+'">'+def.d+'</div>'
-              +rows.slice(0,6).map(function(r,i){return '<div class="bcard-row"><span class="rk">'+(i+1)+'.</span>'+r.l+' <span>'+r.v+'</span></div>';}).join('');
+        +'<div class="bcard-desc" id="'+descId+'">'+def.d+'</div>'
+        +rows.slice(0,6).map(function(r,i){return '<div class="bcard-row"><span class="rk">'+(i+1)+'.</span>'+r.l+' <span>'+r.v+'</span></div>';}).join('');
       grid.appendChild(card);
     });
     if(isGroup) document.getElementById('behNote').textContent='Nota: risposta e ghosting su chat di gruppo sono approssimativi.';

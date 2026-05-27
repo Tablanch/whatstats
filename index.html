@@ -315,7 +315,7 @@
     'sullo sugli dalla dalle dallo dagli col coi solo cosa cose così pure tipo cioè proprio invece quanto ' +
     'prima dopo stato stata stati state fatto fatta fatti fatte detto detta detti dette visto vista visti ' +
     'viste avuto avuta avevi avevo aveva avevamo vuoi vediamo devo deve dobbiamo faccio facciamo magari ' +
-    'oggi https modificato'
+    'oggi https modificato whatsapp channel link gruppo group added removed left created changed'
   ).split(' '));
   const MEDIA_PAT = {immagini:/immagine\s+omessa|image\s+omitted/i,video:/video\s+omesso|video\s+omitted/i,audio:/audio\s+omesso|audio\s+omitted/i,sticker:/sticker\s+non\s+incluso|sticker\s+omitted/i,gif:/gif\s+omessa|gif\s+omitted/i,documenti:/documento\s+omesso|document\s+omitted/i};
   const DEL_PAT = /questo messaggio.*eliminato|this message was deleted/i;
@@ -498,7 +498,7 @@
         for(let b=0; b<LEN_B.length; b++){ if(wc<=LEN_B[b].max){bk=b;break;} }
         st.lenB[a][bk]++;
         if(wc>50) st.longMsgs.push({a:a,day:day,hr:hr,txt:txt,wc:wc});
-        txt.toLowerCase().replaceAll(/[^a-z\u00e0-\u00fc'\s]/g,' ').split(/\s+/)
+        txt.toLowerCase().replace(/https?:\/\/\S+/g,' ').replaceAll(/[^a-z\u00e0-\u00fc'\s]/g,' ').split(/\s+/)
                 .filter(function(w){ return w.length>3 && !STOP.has(w); })
                 .forEach(function(w){
                   st.words[w]=(st.words[w]||0)+1;

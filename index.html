@@ -279,7 +279,7 @@
   <div class="section" id="sHour"><h2>Ore del giorno</h2><div class="ch"><canvas id="hourChart"></canvas></div></div>
   <div class="section" id="sWday"><h2>Giorni della settimana</h2><div class="ch"><canvas id="wdayChart"></canvas></div></div>
   <div class="section" id="sHmap"><h2>Heatmap ora x giorno</h2><p class="note" style="margin-bottom:8px;">Passa il mouse o tocca una cella per vedere il conteggio.</p><div class="hm-scroll"><div class="hm-grid" id="hmGrid"></div></div></div>
-  <div class="section" id="sAuth"><h2>Partecipanti</h2><table id="authTable"><thead><tr><th></th><th>Autore</th><th>Messaggi</th><th>%</th><th>Avg car.</th></tr></thead><tbody></tbody></table><div class="pie-wrap"><canvas id="pieChart"></canvas></div><div class="author-grid" id="authCards"></div></div>
+  <div class="section" id="sAuth"><h2>Partecipanti</h2><table id="authTable"><thead><tr><th></th><th>Autore</th><th>Messaggi</th><th>%</th><th>Media caratteri</th></tr></thead><tbody></tbody></table><div class="pie-wrap"><canvas id="pieChart"></canvas></div><div class="author-grid" id="authCards"></div></div>
   <div class="section" id="sBeh"><h2>Comportamenti</h2><p class="note" style="margin-bottom:14px;">Clicca sul titolo di una card per la descrizione.</p><div class="bcard-grid" id="behGrid"></div><p class="note" id="behNote"></p></div>
   <div class="section" id="sWho"><h2>Chi risponde a chi <span class="gbadge">GRUPPO</span></h2><p class="note" style="margin-bottom:10px;">Riga risponde a colonna (primo msg dopo cambio autore).</p><div class="matrix-scroll"><table class="rmatrix" id="rMatrix"><thead><tr><th scope="col">da ↓ / a →</th></tr></thead><tbody></tbody></table></div></div>
   <div class="section" id="sLen"><h2>Distribuzione lunghezza messaggi</h2><div class="len-grid" id="lenGrid"></div></div>
@@ -330,10 +330,11 @@
     'sullo sugli dalla dalle dallo dagli col coi solo cosa cose così pure tipo cioè proprio invece quanto ' +
     'prima dopo stato stata stati state fatto fatta fatti fatte detto detta detti dette visto vista visti ' +
     'viste avuto avuta avevi avevo aveva avevamo vuoi vediamo devo deve dobbiamo faccio facciamo magari ' +
-    'oggi https modificato whatsapp channel link gruppo group added removed left created changed'
+    'oggi https modificato whatsapp channel link gruppo group added removed left created changed omitted edited'
   ).split(' '));
   const MEDIA_PAT = {immagini:/immagine\s+omessa|image\s+omitted/i,video:/video\s+omesso|video\s+omitted/i,audio:/audio\s+omesso|audio\s+omitted/i,sticker:/sticker\s+non\s+incluso|sticker\s+omitted/i,gif:/gif\s+omessa|gif\s+omitted/i,documenti:/documento\s+omesso|document\s+omitted/i};
   const DEL_PAT = /questo messaggio.*eliminato|this message was deleted/i;
+  const SYS_PAT = /this message was edited|questo messaggio.*modificato|you deleted this message|hai eliminato questo messaggio|media\s+omitted|end-to-end encrypted|crittografati end-to-end|missed (voice|video) call|chiamata (vocale|video) persa|(you |ha )?(created|creato) (this )?group|added you|added .* to (this )?group|ha aggiunto|removed .* from (this )?group|ha rimosso|left (this )?group|ha lasciato il gruppo|joined using|si è uni(to|ta) (al gruppo|usando)|changed (the )?(subject|icon|description|name)|ha cambiato (il nome|l'icona|la descrizione)|security code changed|codice di sicurezza cambiato/i;
 
   // ── STATE ─────────────────────────────────────────────────────────────────────
   let allMsg=[], msgs=[], mByDay={}, st={}, annivs={}, calMonth=new Date(), isGroup=false, fFrom='', fTo='';
@@ -485,7 +486,7 @@
     if(hr>=22||hr<NIGHT_E) st.night[a]++;
   }
   function isSysMsg(txt){
-    return Object.values(MEDIA_PAT).some(function(p){return p.test(txt);})||DEL_PAT.test(txt);
+    return Object.values(MEDIA_PAT).some(function(p){return p.test(txt);})||DEL_PAT.test(txt)||SYS_PAT.test(txt);
   }
   function processContent(txt,a,yr,day,hr){
     let wc=txt.split(/\s+/).filter(function(w){return w.length>0;}).length;

@@ -142,10 +142,11 @@
     .bcard-title::after{content:' ℹ';opacity:.5;}
     .bcard-desc{display:none;font-size:.72rem;color:var(--muted);font-style:italic;margin-bottom:10px;padding:6px 8px;background:var(--bg);border-radius:6px;border-left:2px solid var(--green);line-height:1.6;}
     .bcard-desc.on{display:block;}
-    .bcard-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.04);}
+    .bcard-row{display:flex;align-items:center;gap:4px;padding:4px 0;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.04);}
     .bcard-row:last-child{border:none;}
-    .bcard-row span{color:var(--green-light);font-weight:600;}
-    .bcard-row .rk{color:var(--muted);font-size:.75rem;margin-right:6px;}
+    .bcard-row .rk{color:var(--muted);font-size:.75rem;flex-shrink:0;}
+    .bcard-row .rk-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .bcard-row .rk-val{color:var(--green-light);font-weight:600;flex-shrink:0;text-align:right;}
     /* AUTHOR CARDS */
     .author-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:16px;}
     .acard{background:var(--surface2);border-radius:12px;padding:14px;}
@@ -284,6 +285,7 @@
   <div class="section" id="sWho"><h2>Chi risponde a chi <span class="gbadge">GRUPPO</span></h2><p class="note" style="margin-bottom:10px;">Riga risponde a colonna (primo msg dopo cambio autore).</p><div class="matrix-scroll"><table class="rmatrix" id="rMatrix"><thead><tr><th scope="col">da ↓ / a →</th></tr></thead><tbody></tbody></table></div></div>
   <div class="section" id="sLen"><h2>Distribuzione lunghezza messaggi</h2><div class="len-grid" id="lenGrid"></div></div>
   <div class="section" id="sUq"><h2>Parole uniche per autore</h2><div class="uq-grid" id="uqGrid"></div></div>
+  <div class="section" id="sAwrd"><h2>Parole più usate per autore</h2><div class="yr-grid" id="awrdGrid"></div></div>
   <div class="section" id="sYr"><h2>Parole per anno</h2><div class="yr-grid" id="yrGrid"></div></div>
   <div class="section" id="sSp"><h2>Velocità di scrittura stimata</h2><div class="sp-grid" id="spGrid"></div><p class="note">Stimata su burst di messaggi dello stesso autore entro 3 minuti.</p></div>
   <div class="section" id="sMed"><h2>Media leaderboard <span class="gbadge" id="medBadge" style="display:none">GRUPPO</span></h2><div class="media-grid" id="medGrid"></div></div>
@@ -334,7 +336,7 @@
   ).split(' '));
   const MEDIA_PAT = {immagini:/immagine\s+omessa|image\s+omitted/i,video:/video\s+omesso|video\s+omitted/i,audio:/audio\s+omesso|audio\s+omitted/i,sticker:/sticker\s+non\s+incluso|sticker\s+omitted/i,gif:/gif\s+omessa|gif\s+omitted/i,documenti:/documento\s+omesso|document\s+omitted/i};
   const DEL_PAT = /questo messaggio.*eliminato|this message was deleted/i;
-  const SYS_PAT = /this message was edited|questo messaggio.*modificato|you deleted this message|hai eliminato questo messaggio|media\s+omitted|end-to-end encrypted|crittografati end-to-end|missed (voice|video) call|chiamata (vocale|video) persa|(you |ha )?(created|creato) (this )?group|added you|added .* to (this )?group|ha aggiunto|removed .* from (this )?group|ha rimosso|left (this )?group|ha lasciato il gruppo|joined using|si è uni(to|ta) (al gruppo|usando)|changed (the )?(subject|icon|description|name)|ha cambiato (il nome|l'icona|la descrizione)|security code changed|codice di sicurezza cambiato/i;
+  const SYS_PAT = /^POLL:|you deleted this message|hai eliminato questo messaggio|media\s+omitted|end-to-end encrypted|crittografati end-to-end|missed (voice|video) call|chiamata (vocale|video) persa|(you |ha )?(created|creato) (this )?group|added you|added .* to (this )?group|ha aggiunto|removed .* from (this )?group|ha rimosso|left (this )?group|ha lasciato il gruppo|joined using|si è uni(to|ta) (al gruppo|usando)|changed (the )?(subject|icon|description|name)|ha cambiato (il nome|l'icona|la descrizione)|security code changed|codice di sicurezza cambiato/i;
 
   // ── STATE ─────────────────────────────────────────────────────────────────────
   let allMsg=[], msgs=[], mByDay={}, st={}, annivs={}, calMonth=new Date(), isGroup=false, fFrom='', fTo='';
@@ -421,6 +423,9 @@
         if(ci > 0){ author = rest.slice(0,ci).trim(); txt = rest.slice(ci+1).trim(); }
         else txt = rest.trim();
       }
+      // strip WhatsApp inline annotations (e.g. <This message was edited>)
+      txt = txt.replace(/<This message was edited>|<Questo messaggio è stato modificato>/gi,'').trim();
+      if(!txt || author==='Sconosciuto') continue;
       // normalize text-symbol hearts to emoji presentation
       txt = txt.replaceAll('♥','❤️').replaceAll(/❤(?!️)/g,'❤️');
       let obj = {day:day, hr:hr, mn:mn, wd:new Date(day).getDay(), author:author, text:txt, ts:ts};
@@ -617,7 +622,7 @@
     renderHour(); renderWeekday(); renderHeatmap();
     renderAuthors(); renderBehavior();
     if(isGroup) renderWhoReplies();
-    renderLength(); renderUniqueWords(); renderYearlyWords(); renderSpeed();
+    renderLength(); renderUniqueWords(); renderAuthorWords(); renderYearlyWords(); renderSpeed();
     renderMedia(); renderEmoji(); renderWords(); renderUrls(); renderLongMessages();
   }
 
@@ -913,7 +918,7 @@
       let descId='bd'+idx;
       card.innerHTML='<div class="bcard-title" onclick="toggleBDesc(\''+descId+'\')">'+def.t+'</div>'
         +'<div class="bcard-desc" id="'+descId+'">'+def.d+'</div>'
-        +rows.slice(0,6).map(function(r,i){return '<div class="bcard-row"><span class="rk">'+(i+1)+'.</span>'+r.l+' <span>'+r.v+'</span></div>';}).join('');
+        +rows.slice(0,6).map(function(r,i){return '<div class="bcard-row"><span class="rk">'+(i+1)+'.</span><span class="rk-name">'+r.l+'</span><span class="rk-val">'+r.v+'</span></div>';}).join('');
       grid.appendChild(card);
     });
     if(isGroup) document.getElementById('behNote').textContent='Nota: risposta e ghosting su chat di gruppo sono approssimativi.';
@@ -968,6 +973,20 @@
       let scored=Object.entries(wm).map(function(e){let gf=(st.words[e[0]]||0)/gTot,af=e[1]/aTot;return{w:e[0],n:e[1],sc:gf>0?af/gf:af};}).sort(function(a,b){return b.sc-a.sc;}).slice(0,15);
       let card=document.createElement('div'); card.className='uq-card';
       card.innerHTML='<div class="uq-name">'+a+'</div><div class="uq-words">'+scored.map(function(e){return '<div class="uq-tag" title="'+e.n+' volte">'+e.w+'</div>';}).join('')+'</div>';
+      grid.appendChild(card);
+    });
+  }
+
+  // AUTHOR WORDS
+  function renderAuthorWords(){
+    let authors=Object.entries(st.awords).filter(function(x){return x[0]!=='Sconosciuto'&&Object.keys(x[1]).length>0;}).sort(function(a,b){return st.byA[b[0]]-st.byA[a[0]];});
+    if(!authors.length){document.getElementById('sAwrd').classList.remove('on');return;}
+    let grid=document.getElementById('awrdGrid');grid.innerHTML='';
+    authors.forEach(function(x){
+      let a=x[0],wm=x[1];
+      let top=Object.entries(wm).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
+      let card=document.createElement('div');card.className='yr-card';
+      card.innerHTML='<div class="yr-title">'+a+'</div>'+top.map(function(e){return '<div class="yr-row">'+e[0]+' <span>'+e[1]+'</span></div>';}).join('');
       grid.appendChild(card);
     });
   }

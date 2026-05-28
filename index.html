@@ -383,36 +383,43 @@
   }
 
   // ── PARSER ────────────────────────────────────────────────────────────────────
+  // Formato con parentesi: [DD/MM/YY, HH:MM] Autore: Testo
+  // Formato senza parentesi (Android/iOS recente): DD/MM/YYYY, HH:MM - Autore: Testo
   function parseChat(text){
     allMsg = [];
     let lines = text.replaceAll('\r','').split('\n');
-    let re = /^[\u200e\u200f\ufeff]*\[(\d{2})\/(\d{2})\/(\d{2,4}),\s(\d{2}):(\d{2})(?::\d{2})?]/;
+    let reBracket = /^[‎‏﻿]*\[(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s(\d{2}):(\d{2})(?::\d{2})?]/;
+    let reDash    = /^[‎‏﻿]*(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s(\d{2}):(\d{2})(?::\d{2})?\s+-\s/;
     let lastObj = null;
     for(const line of lines){
-      let m = line.match(re);
+      let m = line.match(reBracket);
+      let dash = false;
+      if(!m){ m = line.match(reDash); if(m) dash = true; }
       if(!m){
         // continuation line — append to previous message
-        if(lastObj && line.trim()) lastObj.text += '\n' + line.replace(/^[\u200e\u200f]+/,'');
+        if(lastObj && line.trim()) lastObj.text += '\n' + line.replace(/^[‎‏]+/,'');
         continue;
       }
       let yr = m[3].length===2 ? '20'+m[3] : m[3];
-      let day = yr+'-'+m[2]+'-'+m[1];
+      let day = yr+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
       let hr = +m[4], mn = +m[5];
       let ts = new Date(+yr, +m[2]-1, +m[1], hr, mn).getTime();
       let author = 'Sconosciuto', txt = '';
-      let bi = line.indexOf('] ');
+      let sep = dash ? ' - ' : '] ';
+      let bi = line.indexOf(sep);
       if(bi !== -1){
-        let rest = line.slice(bi+2).replace(/^[\u200e\u200f]+/,'');
+        let rest = line.slice(bi+sep.length).replace(/^[‎‏]+/,'');
         let ci = rest.indexOf(':');
         if(ci > 0){ author = rest.slice(0,ci).trim(); txt = rest.slice(ci+1).trim(); }
         else txt = rest.trim();
       }
       // normalize text-symbol hearts to emoji presentation
-      txt = txt.replaceAll('\u2665','\u2764\uFE0F').replaceAll(/\u2764(?!\uFE0F)/g,'\u2764\uFE0F');
+      txt = txt.replaceAll('♥','❤️').replaceAll(/❤(?!️)/g,'❤️');
       let obj = {day:day, hr:hr, mn:mn, wd:new Date(day).getDay(), author:author, text:txt, ts:ts};
       allMsg.push(obj);
       lastObj = obj;
     }
+    if(!allMsg.length){ setStatus('Nessun messaggio trovato: formato non riconosciuto','err'); document.getElementById('loading').classList.remove('on'); return; }
     let authSet = new Set(allMsg.map(function(m){ return m.author; }).filter(function(a){ return a!=='Sconosciuto'; }));
     isGroup = authSet.size > 2;
     let days = [...new Set(allMsg.map(function(m){ return m.day; }))].sort();
